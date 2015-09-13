@@ -1,14 +1,19 @@
-# require 'sinatra'
 require 'rest-client'
 require 'Json'
 require 'uri'
+require 'open-uri'
 
-
-# get '/hi' do
-#   erb :'index.html'
-# end
-
+###
 ### Here are all the methods this program uses. ###
+###
+
+# Method to create sample charities (as merchants) to donate to 
+def createCharities
+	charity_list = ["Direct Relief", "Catholic Medical Mission Board", "MAP International", "United Nations Foundation", "The Rotary Foundation of Rotary International", "Samaritan's Purse", "Institute of International Education", "International Rescue Committee", "Compassion International", "United States Fund for UNICEF"]
+	charity_list.each do |charity|
+		RestClient.post 'http://api.reimaginebanking.com/merchants?key=e0486a76005721ee6d86b140eaea2a40', { "name": "#{charity}"}.to_json, :content_type => :json, :accept => :json
+	end
+end
 
 # Method to update donation status of existing users. 
 def setup 
@@ -33,7 +38,6 @@ def setup
 
 	customers = JSON.parse(response)
 
-	# list all users?
 	# if there are customers, show how many customers in the database there are
 	if customers.empty?
 		puts "No customers to show."
@@ -81,16 +85,6 @@ def setup
 end 
 
 
-
-# Method to create sample charities (as merchants) to donate to 
-def createCharities
-	charity_list = ["Direct Relief", "Catholic Medical Mission Board", "MAP International", "United Nations Foundation", "The Rotary Foundation of Rotary International", "Samaritan's Purse", "Institute of International Education", "International Rescue Committee", "Compassion International", "United States Fund for UNICEF"]
-	charity_list.each do |charity|
-		RestClient.post 'http://api.reimaginebanking.com/merchants?key=e0486a76005721ee6d86b140eaea2a40', { "name": "#{charity}"}.to_json, :content_type => :json, :accept => :json
-	end
-end
-
-
 # Method to get list of merchants
 def getMerchants
 	begin
@@ -111,109 +105,82 @@ def listMerchants (merchants)
 end
 
 # Method to calculate how much to donate.
-def centsToDonate (pay_amount)
+def ToDonate (pay_amount)
 	decimal = pay_amount.modulo(1).round(2)
-	if decimal < 50
-		to_donate = 50-decimal
-	elsif decimal < 100
-		to_donate = 100 - decimal
+	if decimal < 0.50
+		to_donate = 0.50-decimal
+	elsif decimal < 1.00
+		to_donate = 1.00 - decimal
 	else 
 		to_donate = 0;
 	end
+	to_donate = (to_donate).round(2)
 end
 
 # Choose which customer to simulate payment and donation
 def chooseCustomer (customers)
 	puts "Now it's time to see how Charity Cents works."
-	puts "Pick a customer and let's simulate a purchase."
+	puts "Pick a customer who wants to donate and let's simulate a purchase."
 	customers.each_with_index do |customer, index|
 		puts "#{index.to_i+1}: #{customer["first_name"]} #{customer["last_name"]}"
 		customer["selection_number"] = index + 1
 	end
+	
 	puts "Pick a person to use to simulate a payment."
 	begin
 		puts "Enter a number from 1 to #{customers.count} to pick corresponding person."
 		customer_number = gets.strip.to_i
-	end until customer_number >= 1 && customer_number <= customer_count
-	return customers[customer_count-1]
+	end until customer_number >= 1 && customer_number <= customers.count
+	if customers[customer_number-1]["charity_cents"] != true
+		puts "This customer is not willing to donate. I'm sorry."
+		return false
+	end
+	return customers[customer_number-1]
 end
 
 
 def purchase (purchaser, merchants)
-	merchants = getMerchants
 	randomMerchant = merchants[rand(merchants.count)-1]
 
 	puts = "Let's make a purchase. Choose an amount you'd like to spend."
 	begin 
-		puts "Let's simulate a purchase under $10. Enter amount to spend."
+		puts "Let's simulate a small purchase. Enter amount to spend under $10."
 		purchase_amount = gets.strip.to_f
 	end until purchase_amount > 0.0 && purchase_amount < 10
 
-	num = purchaser['_id']
-
-	RestClient.post 'http://api.reimaginebanking.com/accounts/#{purchaser['_id']}/purchases?key=e0486a76005721ee6d86b140eaea2a40', { "merchant_id": "#{randomMerchant['_id']}", "medium": "balance", "amount": "#{purchase_amount}"}.to_json, :content_type => :json, :accept => :json
-
+	# RestClient.post 'http://api.reimaginebanking.com/accounts/#{purchaser['_id']}/purchases?key=e0486a76005721ee6d86b140eaea2a40', { "merchant_id": "#{randomMerchant['_id']}", "medium": "balance", "amount": "#{purchase_amount}"}.to_json, :content_type => :json, :accept => :json
+	puts " #{purchaser['first_name']} made a purchase of #{purchase_amount} to #{randomMerchant['name']}" 
+	
+	toDonate = ToDonate(purchase_amount)
+	purchaser["donated"] = purchaser["count"].to_f + toDonate
+	puts "$#{toDonate} will be donated to charity by #{purchaser['first_name']}."
 end
 
-
-
-
-
-
+###
 ### Calls appropriate methods. The "main" sequence if you like to call it that. ###
+###
 
-
+#createCharities
 customers = setup()
-purchaser = chooseCustomer(customers)
 merchants = getMerchants()
 
-purchase(purchaser, merchants)
+begin
+	purchaser = chooseCustomer(customers)
+	if purchaser != false
+		purchase(purchaser, merchants)
+	end
+	puts "Would you like to try and simulate another purchase?"
+	begin 
+		puts "Enter y for yes or n for no."
+		answer = gets.strip
+	end until answer == 'n' || answer == 'y' 
+end until answer == 'n'
+
+puts "Thanks for using Charity Cents. Goodbye for now."
 
 
+###
+### Next steps: get API to update with simulated donations and purchases. Create front end for this. 
+### This app is more about the idea and the implementation possibilities than the actual code.
+###
 
-
-
-
-### Unused code. ###
-
-# def createCustomer
-# 	#need to handle errors
-
-# 	puts "Enter first name"
-# 	first_name = gets.strip.to_s
-# 	puts "Enter last name"
-# 	last_name = gets.strip.to_s
-	
-# 	puts "Now for your address..."
-# 	puts "Enter your street number"
-# 	street_number = gets.strip.to_i
-# 	puts "Enter your street name"
-# 	street_name = gets.strip.to_s
-# 	puts "Enter your city"
-# 	city = gets.strip.to_s
-# 	puts "Enter your state"
-# 	state = gets.strip.to_s
-# 	puts "Enter your zip"
-# 	zip = gets.strip.to_s
-
-# 	RestClient.post 'http://api.reimaginebanking.com/customers?key=e0486a76005721ee6d86b140eaea2a40', {
-# 		"first_name": first_name,
-# 	  "last_name": last_name,
-# 	  "address": {
-# 	    "street_number": street_number,
-# 	    "street_name": street_name,
-# 	    "city": city,
-# 	    "state": state,
-# 	    "zip": zip
-# 	  	}
-# 	}.to_json, :content_type => :json, :accept => :json
-# end
-
-
-
-
-
-
-# if new transaction to merchant, calculate change, donate to merchant
-# update points (can have reward)
-# have counter for total amount donated
