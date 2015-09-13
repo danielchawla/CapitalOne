@@ -1,13 +1,20 @@
+###
+### Created on Saturday, September 12, 2015 at MHacks 6.
+### 
+###This app attempts to solve a social problem. Many people love the idea of giving to charity but can't be inconvenienced to do so 
+### as much as they would like. This app lets users effortlessly donate a couple of cents to a pre-selected charity each time they 
+### make a purchase. It's as simple as that.
+###
+
+# Imports necessary dependencies
 require 'rest-client'
 require 'Json'
-require 'uri'
-require 'open-uri'
 
-###
-### Here are all the methods this program uses. ###
-###
 
-# Method to create sample charities (as merchants) to donate to 
+#
+# Method to create sample charities (as merchants) to donate to. Only needs to be run with APIs. 
+# If developing this app further, adding more charities and more specific info about each charity is crucial.
+#
 def createCharities
 	charity_list = ["Direct Relief", "Catholic Medical Mission Board", "MAP International", "United Nations Foundation", "The Rotary Foundation of Rotary International", "Samaritan's Purse", "Institute of International Education", "International Rescue Committee", "Compassion International", "United States Fund for UNICEF"]
 	charity_list.each do |charity|
@@ -15,13 +22,15 @@ def createCharities
 	end
 end
 
-# Method to update donation status of existing users. 
+#
+# Method to update donation status of existing users. If app was actually launched, users would update their profile themselves.
+#
 def setup 
 	# greet user
 	puts ""
 	puts "Hello. Welcome to Charity Cents."
 	puts "Charity Cents is an app that help you conveniently donate your small change to a charity of your choose."
-	puts "If you choose to donate, Charity Cents lets you donate the change you would have received if it was a cash purchase (up to a max of 50 cents/transaction) to your selected charity."
+	puts "If you choose to donate, Charity Cents lets you donate the change you would have received if it was a cash purchase (up to a max of 49 cents/transaction) to your selected charity."
 	puts ""
 
 	puts "Let's get started."
@@ -48,7 +57,7 @@ def setup
 		puts ""
 	end
 
-	# manually update Charity Cents status for each customer. Normally customers would do this themselves
+	# manually update Charity Cents status for each customer. Normally customers would do this themselves.
 	customers.each_with_index do |customer, index|
 		puts "Does customer #{customer["first_name"]} #{customer["last_name"]} (ID: #{customer["_id"]}) want to donate with Charity Cents?"
 		begin
@@ -59,6 +68,7 @@ def setup
 		if status == 'n'
 			customer["charity_cents"] = false
 			customer["charity_selection"] = nil
+		# pick which charity to donate to
 		else
 			customer["charity_cents"] = true
 			puts "Which charity would #{customer["first_name"]} #{customer["last_name"]} like to donate to?"
@@ -84,8 +94,9 @@ def setup
 	return customers
 end 
 
-
-# Method to get list of merchants
+#
+# Method to get list of all merchants
+#
 def getMerchants
 	begin
 		response = RestClient.get('http://api.reimaginebanking.com/merchants?key=e0486a76005721ee6d86b140eaea2a40')
@@ -97,14 +108,18 @@ def getMerchants
 	return merchants
 end
 
-# Method to list all merchants. Warning, there's lots of merchants!
+#
+# Method to list out merchants on screen. Warning, there's 2000+ merchants currently!
+#
 def listMerchants (merchants)
 	merchants.each do |merchant|
 		puts "#{merchant["name"]}"
 	end
 end
 
-# Method to calculate how much to donate.
+#
+# Method to calculate how much to donate. Max donation possible is 49 cents/transaction.
+#
 def ToDonate (pay_amount)
 	decimal = pay_amount.modulo(1).round(2)
 	if decimal < 0.50
@@ -117,16 +132,17 @@ def ToDonate (pay_amount)
 	to_donate = (to_donate).round(2)
 end
 
-# Choose which customer to simulate payment and donation
+#
+# Method to choose which customer to simulate payment and donation with.
+#
 def chooseCustomer (customers)
-	puts "Now it's time to see how Charity Cents works."
-	puts "Pick a customer who wants to donate and let's simulate a purchase."
+	puts "Now it's time to see how Charity Cents would work."
 	customers.each_with_index do |customer, index|
 		puts "#{index.to_i+1}: #{customer["first_name"]} #{customer["last_name"]}"
 		customer["selection_number"] = index + 1
 	end
 	
-	puts "Pick a person to use to simulate a payment."
+	puts "It's time to simulate a purchase and donation. Pick a user and let's get started."
 	begin
 		puts "Enter a number from 1 to #{customers.count} to pick corresponding person."
 		customer_number = gets.strip.to_i
@@ -138,7 +154,10 @@ def chooseCustomer (customers)
 	return customers[customer_number-1]
 end
 
-
+#
+# This method simulates a purchase from a random merchant and shows the donation that would automatically transpire.
+# If this was to be further developed, create actual transactions with Capital One API.
+#
 def purchase (purchaser, merchants)
 	randomMerchant = merchants[rand(merchants.count)-1]
 
@@ -148,22 +167,20 @@ def purchase (purchaser, merchants)
 		purchase_amount = gets.strip.to_f
 	end until purchase_amount > 0.0 && purchase_amount < 10
 
-	# RestClient.post 'http://api.reimaginebanking.com/accounts/#{purchaser['_id']}/purchases?key=e0486a76005721ee6d86b140eaea2a40', { "merchant_id": "#{randomMerchant['_id']}", "medium": "balance", "amount": "#{purchase_amount}"}.to_json, :content_type => :json, :accept => :json
-	puts " #{purchaser['first_name']} made a purchase of #{purchase_amount} to #{randomMerchant['name']}" 
-	
+	puts " #{purchaser['first_name']} made a purchase of $#{purchase_amount} to #{randomMerchant['name']}" 	
 	toDonate = ToDonate(purchase_amount)
 	purchaser["donated"] = purchaser["count"].to_f + toDonate
-	puts "$#{toDonate} will be donated to charity by #{purchaser['first_name']}."
+	puts "$#{toDonate} will be donated to charity on #{purchaser['first_name']}'s behalf."
 end
 
 ###
-### Calls appropriate methods. The "main" sequence if you like to call it that. ###
+### Calls appropriate methods. The "main" sequence if you'd like to call it that.
 ###
 
-#createCharities
 customers = setup()
 merchants = getMerchants()
 
+# main loop to simulate transactions
 begin
 	purchaser = chooseCustomer(customers)
 	if purchaser != false
@@ -180,7 +197,7 @@ puts "Thanks for using Charity Cents. Goodbye for now."
 
 
 ###
-### Next steps: get API to update with simulated donations and purchases. Create front end for this. 
-### This app is more about the idea and the implementation possibilities than the actual code.
+### Next steps: Implement next steps mentioned earlier and create front end for code. At this point,
+### this app is more about the idea and the implementation possibilities than the actual code.
 ###
 
