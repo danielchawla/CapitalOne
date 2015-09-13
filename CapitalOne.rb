@@ -1,6 +1,7 @@
 # require 'sinatra'
 require 'rest-client'
 require 'Json'
+require 'uri'
 
 
 # get '/hi' do
@@ -76,7 +77,9 @@ def setup
 			customer["charity_selection"] = charity_number
 		end
 	end
+	return customers
 end 
+
 
 
 # Method to create sample charities (as merchants) to donate to 
@@ -119,11 +122,56 @@ def centsToDonate (pay_amount)
 	end
 end
 
+# Choose which customer to simulate payment and donation
+def chooseCustomer (customers)
+	puts "Now it's time to see how Charity Cents works."
+	puts "Pick a customer and let's simulate a purchase."
+	customers.each_with_index do |customer, index|
+		puts "#{index.to_i+1}: #{customer["first_name"]} #{customer["last_name"]}"
+		customer["selection_number"] = index + 1
+	end
+	puts "Pick a person to use to simulate a payment."
+	begin
+		puts "Enter a number from 1 to #{customers.count} to pick corresponding person."
+		customer_number = gets.strip.to_i
+	end until customer_number >= 1 && customer_number <= customer_count
+	return customers[customer_count-1]
+end
 
-### Calls appropriate methods. The "Main" sequence if you like. ###
+
+def purchase (purchaser, merchants)
+	merchants = getMerchants
+	randomMerchant = merchants[rand(merchants.count)-1]
+
+	puts = "Let's make a purchase. Choose an amount you'd like to spend."
+	begin 
+		puts "Let's simulate a purchase under $10. Enter amount to spend."
+		purchase_amount = gets.strip.to_f
+	end until purchase_amount > 0.0 && purchase_amount < 10
+
+	num = purchaser['_id']
+
+	RestClient.post 'http://api.reimaginebanking.com/accounts/#{purchaser['_id']}/purchases?key=e0486a76005721ee6d86b140eaea2a40', { "merchant_id": "#{randomMerchant['_id']}", "medium": "balance", "amount": "#{purchase_amount}"}.to_json, :content_type => :json, :accept => :json
+
+end
 
 
-setup()
+
+
+
+
+### Calls appropriate methods. The "main" sequence if you like to call it that. ###
+
+
+customers = setup()
+purchaser = chooseCustomer(customers)
+merchants = getMerchants()
+
+purchase(purchaser, merchants)
+
+
+
+
 
 
 ### Unused code. ###
@@ -166,9 +214,6 @@ setup()
 
 
 
-	# update charity function
-# store on firebase
-# check for new transaction
-	# if new transaction to merchant, calculate change, donate to merchant
-	# update points (can have reward)
-	# have counter for total amount donated
+# if new transaction to merchant, calculate change, donate to merchant
+# update points (can have reward)
+# have counter for total amount donated
